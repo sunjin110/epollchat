@@ -17,6 +17,9 @@ const (
 func main() {
 	fmt.Println("epoll chat")
 
+	log.Println("epollet 1", Epollet)
+	log.Println("epollet 2", syscall.EPOLLET)
+
 	// var event syscall.EpollEvent
 	var eventList [MaxEpollEvents]syscall.EpollEvent // バッファの確保
 
@@ -62,6 +65,11 @@ func main() {
 	chk.SE(err, "EpollCtl Error")
 
 	log.Println("event is ", jsonutil.Marshal(event))
+	log.Println("fd is ", fd)
+
+	// _, testSa, err := syscall.Accept(fd)
+	// chk.SE(err, "test accept")
+	// log.Println("testSa is ", jsonutil.Marshal(testSa))
 
 	for {
 		// epoll wait 実際に待つ
@@ -75,9 +83,47 @@ func main() {
 
 			nEvent := eventList[ev]
 
-			log.Println("nEvent is ", jsonutil.Marshal(nEvent))
+			log.Println("request fd is ", nEvent.Fd)
+
+			if int(nEvent.Fd) == fd { // socketのfdがroot的な? clientの接続の検知とかをこいつでできる
+
+				// clientからの接続を許可するやつ
+				connFd, sa, err := syscall.Accept(fd)
+				chk.SE(err, "Accept Err")
+				log.Println("sa is ", jsonutil.Marshal(sa)) // どのclientのSocket情報
+				log.Println("connFd is ", connFd)
+
+				// TODO chat serverの場合は、ここで登録する
+
+				syscall.SetNonblock(fd, true)
+				connEvent := &syscall.EpollEvent{
+					Events: syscall.EPOLLIN | Epollet,
+					Fd:     int32(connFd),
+				}
+				err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, connFd, connEvent)
+				chk.SE(err, "EpollCtl")
+
+			} else { // それ以外のfdの場合は、違う動作をするよねってはなし
+				go echo(int(nEvent.Fd))
+			}
+
+			// log.Println("nEvent is ", jsonutil.Marshal(nEvent))
 
 		}
 	}
 
+}
+
+func echo(fd int) {
+	defer func() {
+		log.Println("fd close...", fd)
+		syscall.Close(fd)
+	}()
+
+	var buf [32 * 1024]byte
+	for {
+		nbytes, err := syscall.Read(fd, buf[:])
+		chk.SE(err, "Read error")
+		fmt.Printf("fd: %d nbytes:%d read: %s", fd, nbytes, string(buf[:nbytes]))
+	}
 }
