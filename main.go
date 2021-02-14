@@ -17,9 +17,6 @@ const (
 func main() {
 	fmt.Println("epoll chat")
 
-	log.Println("epollet 1", Epollet)
-	log.Println("epollet 2", syscall.EPOLLET)
-
 	// var event syscall.EpollEvent
 	var eventList [MaxEpollEvents]syscall.EpollEvent // バッファの確保
 
@@ -67,10 +64,6 @@ func main() {
 	log.Println("event is ", jsonutil.Marshal(event))
 	log.Println("fd is ", fd)
 
-	// _, testSa, err := syscall.Accept(fd)
-	// chk.SE(err, "test accept")
-	// log.Println("testSa is ", jsonutil.Marshal(testSa))
-
 	for {
 		// epoll wait 実際に待つ
 		// msec: -1で待つ時間は無限に設定,タイムアウトさせない
@@ -97,7 +90,7 @@ func main() {
 
 				syscall.SetNonblock(fd, true)
 				connEvent := &syscall.EpollEvent{
-					Events: syscall.EPOLLIN | Epollet,
+					Events: syscall.EPOLLIN | Epollet, // TODO なぜEpolletをフラグで渡すのかを検証する
 					Fd:     int32(connFd),
 				}
 				err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, connFd, connEvent)
@@ -120,9 +113,22 @@ func echo(fd int) {
 		syscall.Close(fd)
 	}()
 
-	var buf [32 * 1024]byte
+	// var buf [32 * 1024]byte
+	var buf [2]byte // すげえbuffer小さいとどうなるか？
 	for {
 		nbytes, err := syscall.Read(fd, buf[:])
+
+		// 0byteが送られてきた場合、接続が終了したとみなす
+		if nbytes == 0 {
+			log.Printf("connect close. fd:%d\n", fd)
+			return
+		}
+		if err != nil {
+			log.Printf("このconnectionはすでに終了している fd:%d\n", fd)
+			// bufに値が残ってしまっているときに発生する？
+			return
+		}
+
 		chk.SE(err, "Read error")
 		fmt.Printf("fd: %d nbytes:%d read: %s", fd, nbytes, string(buf[:nbytes]))
 	}
