@@ -113,8 +113,8 @@ func echo(fd int) {
 		syscall.Close(fd)
 	}()
 
-	// var buf [32 * 1024]byte
-	var buf [2]byte // すげえbuffer小さいとどうなるか？
+	var buf [32 * 1024]byte
+	// var buf [2]byte // すげえbuffer小さいとどうなるか？
 	for {
 		nbytes, err := syscall.Read(fd, buf[:])
 
