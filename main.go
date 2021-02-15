@@ -14,6 +14,11 @@ const (
 	MaxEpollEvents = 32
 )
 
+// User TODO 複数thredからのアクセスを安全にする
+type User struct {
+	Fd int
+}
+
 func main() {
 	fmt.Println("epoll chat")
 
@@ -38,7 +43,7 @@ func main() {
 
 	// address bind and listen
 	addr := syscall.SockaddrInet4{
-		Port: 2000,
+		Port: 2001,
 		Addr: [4]byte{0, 0, 0, 0}, // 0.0.0.0:2000
 	}
 
@@ -64,6 +69,8 @@ func main() {
 	log.Println("event is ", jsonutil.Marshal(event))
 	log.Println("fd is ", fd)
 
+	userMap := map[int]*User{}
+
 	for {
 		// epoll wait 実際に待つ
 		// msec: -1で待つ時間は無限に設定,タイムアウトさせない
@@ -84,9 +91,6 @@ func main() {
 				connFd, sa, err := syscall.Accept(fd)
 				chk.SE(err, "Accept Err")
 				log.Println("sa is ", jsonutil.Marshal(sa)) // どのclientのSocket情報
-				log.Println("connFd is ", connFd)
-
-				// TODO chat serverの場合は、ここで登録する
 
 				syscall.SetNonblock(fd, true)
 				connEvent := &syscall.EpollEvent{
@@ -96,40 +100,79 @@ func main() {
 				err = syscall.EpollCtl(epfd, syscall.EPOLL_CTL_ADD, connFd, connEvent)
 				chk.SE(err, "EpollCtl")
 
-			} else { // それ以外のfdの場合は、違う動作をするよねってはなし
-				go echo(int(nEvent.Fd))
-			}
+				// TODO 先にここで、名前の登録をすると面白いかもね
 
-			// log.Println("nEvent is ", jsonutil.Marshal(nEvent))
+				// userを追加する
+				userMap[connFd] = &User{
+					Fd: connFd,
+				}
+
+			} else { // それ以外のfdの場合は、違う動作をするよねってはなし
+
+				// 受け取ったメッセージをどのように送信するかのfunc
+				pushMessageFunc := pushMessage
+
+				// メッセージを受け取り
+				go getMessage(int(nEvent.Fd), userMap, pushMessageFunc)
+			}
 
 		}
 	}
 
 }
 
-func echo(fd int) {
+func getMessage(fd int, userMap map[int]*User, pushMessage func(int, []byte, map[int]*User)) {
 	defer func() {
 		log.Println("fd close...", fd)
+
+		// TODO chat roomから外す処理
+
 		syscall.Close(fd)
 	}()
 
 	var buf [32 * 1024]byte
-	// var buf [2]byte // すげえbuffer小さいとどうなるか？
 	for {
+		// Read
 		nbytes, err := syscall.Read(fd, buf[:])
-
-		// 0byteが送られてきた場合、接続が終了したとみなす
+		// 0byteが送られてきたら、接続終了
 		if nbytes == 0 {
 			log.Printf("connect close. fd:%d\n", fd)
 			return
 		}
+
 		if err != nil {
 			log.Printf("このconnectionはすでに終了している fd:%d\n", fd)
-			// bufに値が残ってしまっているときに発生する？
 			return
 		}
 
 		chk.SE(err, "Read error")
-		fmt.Printf("fd: %d nbytes:%d read: %s", fd, nbytes, string(buf[:nbytes]))
+
+		// bufは途中で値が変わるためcopyして書き込み用bufに移し替える
+		copyedBuf := make([]byte, nbytes)
+		copy(copyedBuf, buf[:nbytes])
+
+		// send
+		go pushMessage(fd, copyedBuf, userMap)
+		log.Println("copy buf is ", string(copyedBuf))
+
+	}
+}
+
+func pushMessage(sendFd int, messageBuf []byte, userMap map[int]*User) {
+
+	// 自分以外だれもいない場合は何もしない
+	if len(userMap) < 2 {
+		return
+	}
+
+	for receiveFd := range userMap {
+
+		// 自分の場合は、なにもしない
+		if receiveFd == sendFd {
+			continue
+		}
+
+		// write
+		syscall.Write(receiveFd, messageBuf)
 	}
 }
