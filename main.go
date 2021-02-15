@@ -21,8 +21,6 @@ type User struct {
 
 func main() {
 	fmt.Println("epoll chat")
-
-	// var event syscall.EpollEvent
 	var eventList [MaxEpollEvents]syscall.EpollEvent // バッファの確保
 
 	// 通信のためのSocketを作成する
