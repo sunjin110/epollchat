@@ -41,7 +41,7 @@ func main() {
 
 	// address bind and listen
 	addr := syscall.SockaddrInet4{
-		Port: 2001,
+		Port: 2000,
 		Addr: [4]byte{0, 0, 0, 0}, // 0.0.0.0:2000
 	}
 
