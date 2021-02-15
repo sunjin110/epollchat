@@ -123,7 +123,8 @@ func getMessage(fd int, userMap map[int]*User, pushMessage func(int, []byte, map
 	defer func() {
 		log.Println("fd close...", fd)
 
-		// TODO chat roomから外す処理
+		// chat roomから外す処理
+		delete(userMap, fd)
 
 		syscall.Close(fd)
 	}()

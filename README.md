@@ -33,4 +33,7 @@ https://keens.github.io/blog/2021/02/01/epolldetsukuruchattosa_ba/
 https://gist.github.com/tevino/3a4f4ec4ea9d0ca66d4f
 
 # TODO 
-結構ぐちゃぐちゃなので整理する、Kqueredでも試してみる
+結構ぐちゃぐちゃなので整理する  
+kqueue/keventでも実装してみる  
+もうちょっとsyscallの使い方を調べる  
+
