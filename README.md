@@ -3,8 +3,8 @@ system callのepollを直接使って、chat serverを作るという試み
 
 # 環境
 go: 1.15.8  
-os: ubuntu20.04
-※ linuxの
+os: ubuntu20.04  
+※ linuxのみ動作します(MacとかFreeBSDは動作しない)  
 
 # server run
 ```go
